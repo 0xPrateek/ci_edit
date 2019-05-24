@@ -32,9 +32,11 @@ import re
 import sys
 import time
 import traceback
+import warnings
 
 import app.bookmark
 import app.config
+from app.curses_util import columnWidth
 import app.history
 import app.log
 import app.mutator
@@ -74,18 +76,22 @@ class Actions(app.mutator.Mutator):
           None if matching bracket isn't found.
           Position (int row, int col) of the matching bracket otherwise.
         """
-        if (self.parser.rowCount() <= self.penRow or
-                len(self.parser.rowText(self.penRow)) <= self.penCol):
+        if self.parser.rowCount() <= self.penRow:
             return None
-        ch = self.parser.rowText(self.penRow)[self.penCol]
+        text, width = self.parser.rowTextAndWidth(self.penRow)
+        if width <= self.penCol:
+            return None
+        ch = app.curses_util.charAtColumn(self.penCol, text)
 
         def searchForward(openCh, closeCh):
             count = 1
             textCol = self.penCol + 1
             for row in range(self.penRow, self.parser.rowCount()):
-                if row != self.penRow:
+                line = self.parser.rowText(row)
+                if row == self.penRow:
+                    line = app.curses_util.renderedSubStr(line, textCol)
+                else:
                     textCol = 0
-                line = self.parser.rowText(row)[textCol:]
                 for match in re.finditer(
                         u"(\\" + openCh + u")|(\\" + closeCh + u")", line):
                     if match.group() == openCh:
@@ -93,7 +99,8 @@ class Actions(app.mutator.Mutator):
                     else:
                         count -= 1
                     if count == 0:
-                        textCol += match.start()
+                        textCol += app.curses_util.columnWidth(
+                            line[:match.start()])
                         return row, textCol
 
         def searchBack(closeCh, openCh):
@@ -101,7 +108,7 @@ class Actions(app.mutator.Mutator):
             for row in range(self.penRow, -1, -1):
                 line = self.parser.rowText(row)
                 if row == self.penRow:
-                    line = line[:self.penCol]
+                    line = app.curses_util.renderedSubStr(line, 0, self.penCol)
                 found = [
                     i for i in re.finditer(
                         u"(\\" + openCh + u")|(\\" + closeCh + u")", line)
@@ -112,7 +119,8 @@ class Actions(app.mutator.Mutator):
                     else:
                         count -= 1
                     if count == 0:
-                        textCol = match.start()
+                        textCol = app.curses_util.columnWidth(
+                            line[:match.start()])
                         return row, textCol
 
         matcher = {
@@ -132,11 +140,6 @@ class Actions(app.mutator.Mutator):
         if matchingBracketRowCol is not None:
             self.penRow = matchingBracketRowCol[0]
             self.penCol = matchingBracketRowCol[1]
-
-    def charAt(self, row, col):
-        if row >= len(self.lines) or col >= len(self.lines[row]):
-            return None
-        return self.lines[row][col]
 
     def performDelete(self):
         if self.selectionMode != app.selectable.kSelectionNone:
@@ -357,10 +360,11 @@ class Actions(app.mutator.Mutator):
             line = self.lines[self.penRow - 1]
             #commonIndent = len(self.program.prefs.editor['indentation'])
             nonSpace = 0
-            while nonSpace < len(line) and line[nonSpace].isspace():
+            width = columnWidth(line)
+            while nonSpace < width and line[nonSpace].isspace():
                 nonSpace += 1
             indent = line[:nonSpace]
-            if len(line):
+            if width:
                 lastChar = line.rstrip()[-1:]
                 if lastChar == u':':
                     indent += grammarIndent
@@ -392,7 +396,7 @@ class Actions(app.mutator.Mutator):
         if app.config.strict_debug:
             assert isinstance(toRow, int)
             assert 0 <= toRow < len(self.lines)
-        lineLen = len(self.lines[toRow])
+        lineLen = columnWidth(self.lines[toRow])
         if self.goalCol <= lineLen:
             return self.goalCol - self.penCol
         return lineLen - self.penCol
@@ -460,7 +464,8 @@ class Actions(app.mutator.Mutator):
         savedGoal = self.goalCol
         if self.penRow == len(self.lines) - 1:
             self.setMessage(u'End of file')
-            self.cursorMove(0, len(self.lines[self.penRow]) - self.penCol)
+            width = self.parser.rowWidth(self.penRow)
+            self.cursorMove(0, width - self.penCol)
         else:
             self.cursorMove(1, self.cursorColDelta(self.penRow + 1))
         self.goalCol = savedGoal
@@ -468,11 +473,12 @@ class Actions(app.mutator.Mutator):
 
     def adjustHorizontalScroll(self):
         if self.view.scrollCol:
-            if len(self.lines[self.penRow]) < self.view.cols:
+            width = self.parser.rowWidth(self.penRow)
+            if width < self.view.cols:
                 # The whole line fits on screen.
                 self.view.scrollCol = 0
             elif (self.view.scrollCol == self.penCol and
-                  self.penCol == len(self.lines[self.penRow])):
+                  self.penCol == width):
                 self.view.scrollCol = max(
                     0, self.view.scrollCol - self.view.cols // 4)
 
@@ -481,11 +487,11 @@ class Actions(app.mutator.Mutator):
         line, lineColWidth = self.parser.rowTextAndWidth(self.penRow)
         if lineColWidth > 0:
             index = app.curses_util.columnToIndex(self.penCol - 1, line)
-            colWidth = app.curses_util.columnWidth(line[index])
+            colWidth = columnWidth(line[index])
         if self.penCol - colWidth >= 0:
             self.cursorMove(0, -colWidth)
         elif self.penRow > 0:
-            self.cursorMove(-1, len(self.lines[self.penRow - 1]))
+            self.cursorMove(-1, self.parser.rowWidth(self.penRow - 1))
         else:
             self.setMessage(u'Top of file')
 
@@ -509,7 +515,7 @@ class Actions(app.mutator.Mutator):
             self.setMessage(u'Top of file')
             return
         savedGoal = self.goalCol
-        lineLen = len(self.lines[self.penRow - 1])
+        lineLen = columnWidth(self.lines[self.penRow - 1])
         if self.goalCol <= lineLen:
             self.cursorMove(-1, self.goalCol - self.penCol)
         else:
@@ -530,7 +536,7 @@ class Actions(app.mutator.Mutator):
             self.setMessage(u'Top of file')
             self.cursorMove(0, -self.penCol)
         else:
-            lineLen = len(self.lines[self.penRow - 1])
+            lineLen = columnWidth(self.lines[self.penRow - 1])
             if self.goalCol <= lineLen:
                 self.cursorMove(-1, self.goalCol - self.penCol)
             else:
@@ -862,7 +868,7 @@ class Actions(app.mutator.Mutator):
 
     def editPaste(self):
         data = self.program.clipboard.paste()
-        if hasattr(data, 'decode'):
+        if not isinstance(data, unicode) and hasattr(data, 'decode'):
             data = data.decode('utf-8')
         if data is not None:
             self.editPasteData(data)
@@ -1294,10 +1300,13 @@ class Actions(app.mutator.Mutator):
         if editorPrefs.get(u'findWholeWord'):
             searchFor = r"\b%s\b" % searchFor
         #app.log.info(searchFor, flags)
-        # The saved re is also used for highlighting.
-        self.findRe = re.compile(searchFor, flags)
-        self.findBackRe = re.compile(u"%s(?!.*%s.*)" % (searchFor, searchFor),
-                                     flags)
+        with warnings.catch_warnings():
+            # Ignore future warning with '[[' regex.
+            warnings.simplefilter("ignore")
+            # The saved re is also used for highlighting.
+            self.findRe = re.compile(searchFor, flags)
+            self.findBackRe = re.compile(u"%s(?!.*%s.*)" % (searchFor, searchFor),
+                                         flags)
         self.findCurrentPattern(direction)
 
     def replaceFound(self, replaceWith):
@@ -1521,6 +1530,8 @@ class Actions(app.mutator.Mutator):
         self.redo()
 
     def insert(self, text):
+        if app.config.strict_debug:
+            assert isinstance(text, unicode)
         self.performDelete()
         self.redoAddChange((u'i', text))
         self.redo()
@@ -1532,7 +1543,7 @@ class Actions(app.mutator.Mutator):
             self.editPasteData(meta)
         elif ch is app.curses_util.UNICODE_INPUT:
             self.insert(meta)
-        elif curses.ascii.isprint(ch):
+        elif type(ch) is int and curses.ascii.isprint(ch):
             self.insert(unichr(ch))
 
     def insertPrintableWithPairing(self, ch, meta):
@@ -1548,8 +1559,8 @@ class Actions(app.mutator.Mutator):
                 }
                 skips = pairs.values()
                 mate = pairs.get(ch)
-                nextChr = self.charAt(self.penRow, self.penCol)
-                if chr(ch) in skips and chr(ch) == nextChr:
+                nextChr = self.parser.charAt(self.penRow, self.penCol)
+                if unichr(ch) in skips and unichr(ch) == nextChr:
                     self.cursorMove(0, 1)
                 elif mate is not None and (nextChr is None or
                                            nextChr.isspace()):
@@ -1851,7 +1862,7 @@ class Actions(app.mutator.Mutator):
         for i in range(len(self.lines)):
             for found in app.regex.kReEndSpaces.finditer(self.lines[i]):
                 self._performDeleteRange(i, found.regs[0][0], i,
-                                        found.regs[0][1])
+                                         found.regs[0][1])
 
     def unindent(self):
         if self.selectionMode != app.selectable.kSelectionNone:

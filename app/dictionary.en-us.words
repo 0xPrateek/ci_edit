@@ -3273,6 +3273,7 @@ complaint
 complaints
 complement
 complementary
+complementing
 complements
 complete
 completed
@@ -3747,6 +3748,7 @@ cooper
 cooperate
 cooperates
 cooperating
+cooperation
 cooperatively
 cooperatives
 coordinate
@@ -7126,6 +7128,7 @@ fund
 fundamental
 fundamentally
 fundamentals
+funding
 funds
 funeral
 funk
@@ -9746,6 +9749,7 @@ lexer
 lexical
 lexicographic
 lexicographical
+lexicographically
 lexicon
 lg
 liabilities
@@ -9901,6 +9905,7 @@ little
 live
 lived
 lively
+liveness
 livery
 lives
 living
@@ -10128,6 +10133,7 @@ magics
 magnet
 magnetic
 magnetism
+magnetometer
 magnification
 magnified
 magnifier
@@ -10969,6 +10975,7 @@ multicolored
 multifarious
 multilayer
 multilayered
+multiline
 multilingual
 multimedia
 multipart
@@ -11306,6 +11313,7 @@ normality
 normalization
 normalize
 normalized
+normalizer
 normalizes
 normalizing
 normally
@@ -14008,6 +14016,7 @@ rediscovery
 redisplayed
 redisplaying
 redistribute
+redistributed
 redistributing
 redistribution
 redistributions
@@ -15542,6 +15551,8 @@ shack
 shad
 shade
 shaded
+shader
+shaders
 shades
 shading
 shadow
@@ -16359,6 +16370,8 @@ spoon
 sporadic
 spore
 sporing
+spork
+sporks
 sport
 sporting
 sports
@@ -18434,6 +18447,7 @@ ungraceful
 ungracefully
 unguarded
 unhanded
+unhandled
 unhappy
 unhardened
 unhelpful
@@ -18514,6 +18528,8 @@ unlike
 unlikelihood
 unlikely
 unlimited
+unlink
+unlinked
 unlisted
 unload
 unloaded
@@ -18547,6 +18563,7 @@ unoccupied
 unofficial
 unopened
 unordered
+unowned
 unpack
 unpacked
 unpacking
@@ -18620,7 +18637,9 @@ unseen
 unselectable
 unsent
 unset
+unshadowed
 unshakable
+unshared
 unshift
 unsigned
 unsnap
@@ -18629,6 +18648,7 @@ unsolicited
 unsorted
 unspecified
 unstable
+unstick
 unstop
 unstructured
 unstuck
@@ -18673,6 +18693,7 @@ unusual
 unusually
 unverifiable
 unverified
+unvisited
 unwanted
 unwieldy
 unwind

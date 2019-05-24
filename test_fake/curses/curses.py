@@ -53,6 +53,21 @@ def isStringType(value):
 BRACKETED_PASTE_BEGIN = (91, 50, 48, 48, 126)  # i.e. "[200~"
 BRACKETED_PASTE_END = (91, 50, 48, 49, 126)  # i.e. "[201~"
 BRACKETED_PASTE = ("terminal_paste",)  # Pseudo event type.
+MIN_DOUBLE_WIDE_CHARACTER = u"\u3000"
+def columnWidth(string):
+    """When rendering |string| how many character cells will be used? For ASCII
+    characters this will equal len(string). For many Chinese characters and
+    emoji the value will be greater than len(string), since many of them use two
+    cells.
+    """
+    assert isinstance(string, unicode), repr(string)
+    width = 0
+    for i in string:
+        if i > MIN_DOUBLE_WIDE_CHARACTER:
+            width += 2
+        else:
+            width += 1
+    return width
 
 
 class error(BaseException):
@@ -107,6 +122,7 @@ class FakeInput:
                         self.tupleIndex = -1
                         if cmd == BRACKETED_PASTE_END:
                             self.inBracketedPaste = False
+                        if cmd != BRACKETED_PASTE_BEGIN:
                             self.waitingForRefresh = True
                         if self.isVerbose:
                             print(cmd, type(cmd))
@@ -208,6 +224,9 @@ class FakeDisplay:
 
     def draw(self, cursorRow, cursorCol, text, colorPair):
         #assert (colorPair & DEBUG_COLOR_PAIR_MASK) in self.colors.values()
+        assert isinstance(cursorRow, int)
+        assert isinstance(cursorCol, int)
+        assert isinstance(text, unicode)
         assert colorPair >= DEBUG_COLOR_PAIR_BASE
         for i in text:
             if i == '\r':
@@ -216,9 +235,13 @@ class FakeDisplay:
             try:
                 self.displayText[cursorRow][cursorCol] = i
                 self.displayStyle[cursorRow][cursorCol] = colorPair
+                cursorCol += 1
+                if columnWidth(i) > 1:
+                    self.displayText[cursorRow][cursorCol] = u" "
+                    self.displayStyle[cursorRow][cursorCol] = colorPair
+                    cursorCol += 1
             except IndexError:
                 raise error()
-            cursorCol += 1
         return cursorRow, cursorCol
 
     def findText(self, screenText):

@@ -47,6 +47,7 @@ cjk
 cla
 cmx
 cn
+cnri
 cpu
 cpus
 cq
@@ -230,16 +231,20 @@ saml
 sde
 sdk
 sdks
+sec
 serp
 sftp
 sgml
 sgmls
+sha
 simd
 sk
 sku
 sl
 smb
 sms
+soc
+sp
 sparc
 sr
 ssd
@@ -286,6 +291,7 @@ vk
 vm
 vma
 vmo
+vmos
 vr
 vv
 wep
