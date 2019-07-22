@@ -49,20 +49,15 @@ class Actions(app.mutator.Mutator):
     handling the drawing/rendering of the text)."""
 
     def __init__(self, program):
-        app.mutator.Mutator.__init__(self)
-        self.program = program
+        app.mutator.Mutator.__init__(self, program)
         self.view = None
         self.bookmarks = []
         self.fileExtension = None
         self.nextBookmarkColorPos = 0
         self.fileEncoding = None
         self.fileHistory = {}
-        self.isBinary = False
         self.lastChecksum = None
         self.lastFileSize = 0
-        self.rootGrammar = self.program.prefs.getGrammar(None)
-        self.debugUpperChangedRow = -1
-        self.parser = app.parser.Parser()
         self.fileFilter(u'')
 
     def getMatchingBracketRowCol(self):
@@ -357,6 +352,8 @@ class Actions(app.mutator.Mutator):
         self.redo()
         grammarIndent = grammar.get(u'indent')
         if grammarIndent:
+            # TODO(): Hack fix. Reconsider how it should be done.
+            self.doParse(self.penRow - 1, self.penRow + 1)
             line, width = self.parser.rowTextAndWidth(self.penRow - 1)
             #commonIndent = len(self.program.prefs.editor['indentation'])
             nonSpace = 0
@@ -902,51 +899,6 @@ class Actions(app.mutator.Mutator):
         if not self.isSelectionInView():
             self.scrollToOptimalScrollPosition()
 
-    def doLinesToBinaryData(self, lines):
-        # TODO(dschuyler): convert lines to binary data.
-        return ''
-
-    def doLinesToData(self, lines):
-
-        def encode(line):
-            return chr(int(line.groups()[0], 16))
-
-        return re.sub(u'\x01([0-9a-fA-F][0-9a-fA-F])', encode, "\n".join(lines))
-
-    def doBinaryDataToLines(self, data):
-        long_hex = binascii.hexlify(data)
-        hex_list = []
-        i = 0
-        width = 32
-        while i < len(long_hex):
-            hex_list.append(long_hex[i:i + width] + '\n')
-            i += width
-        return hex_list
-
-    def doDataToLines(self, data):
-        if app.config.strict_debug:
-            assert isinstance(data, unicode)
-        # Performance: in a 1000 line test it appears fastest to do some simple
-        # .replace() calls to minimize the number of calls to parse().
-        data = data.replace(u'\r\n', u'\n')
-        data = data.replace(u'\r', u'\n')
-        tabSize = self.program.prefs.editor.get(u"tabSize", 8)
-        data = data.expandtabs(tabSize)
-
-        def parse(sre):
-            return u"\x01%02x" % ord(sre.groups()[0])
-
-        #data = re.sub(u'([\0-\x09\x0b-\x1f\x7f-\xff])', parse, data)
-        data = re.sub(u'([\0-\x09\x0b-\x1f])', parse, data)
-        return data.split(u'\n')
-
-    def dataToLines(self):
-        if self.isBinary:
-            self.lines = self.doDataToLines(self.data)
-            #self.lines = self.doBinaryDataToLines(self.data)
-        else:
-            self.lines = self.doDataToLines(self.data)
-
     def fileFilter(self, data):
         self.data = data
         self.dataToLines()
@@ -1176,14 +1128,6 @@ class Actions(app.mutator.Mutator):
         vertically = (self.view.scrollRow <= top and
                       bottom < self.view.scrollRow + self.view.rows)
         return horizontally and vertically
-
-    def linesToData(self):
-        if self.isBinary:
-            self.data = self.doLinesToData(self.lines)
-            # TODO(dschuyler): convert binary data.
-            #self.data = self.doLinesToBinaryData(self.lines)
-        else:
-            self.data = self.doLinesToData(self.lines)
 
     def fenceRedoChain(self):
         self.redoAddChange((u'f'))
@@ -1728,6 +1672,37 @@ class Actions(app.mutator.Mutator):
                 0)
             self.redo()
 
+    def openFileAtCursor(self):
+        """
+        Opens the file under cursor.
+        """
+
+        def openFile(path):
+            textBuffer = self.view.program.bufferManager.loadTextBuffer(path)
+            inputWindow = self.view.controller.currentInputWindow()
+            inputWindow.setTextBuffer(textBuffer)
+            self.changeTo(inputWindow)
+            self.setMessage('Opened file {}'.format(path))
+
+        text, linkType = self.parser.grammarTextAt(self.penRow, self.penCol)
+        if linkType is None:
+            self.setMessage(u"Text is not a recognized file.")
+            return
+        if linkType in (u"c<", u"c\""):
+            # These link types include the outer quotes or brackets.
+            text = text[1:-1]
+        # Give the raw text a try (current working directory or a full path).
+        if os.access(text, os.R_OK):
+            return openFile(text)
+        # Try the path in the same directory as the current file.
+        path = os.path.join(os.path.dirname(self.fullPath), text)
+        if os.access(path, os.R_OK):
+            return openFile(path)
+        # TODO(): try a list of path prefixes. Maybe from project, prefs, build
+        # information, or another tool.
+        # Ran out of tries.
+        self.setMessage(u"No readable file \"{}\"".format(text))
+
     def nextSelectionMode(self):
         nextMode = self.selectionMode + 1
         nextMode %= app.selectable.kSelectionModeCount
@@ -1744,20 +1719,6 @@ class Actions(app.mutator.Mutator):
         self.selectionNone()
         self.findRe = None
         self.view.normalize()
-
-    def doParse(self, begin, end):
-        start = time.time()
-        self.linesToData()
-        self.parser.parse(self.program.bg, self.program.prefs, self.data,
-                          self.rootGrammar, begin, end)
-        self.debugUpperChangedRow = self.upperChangedRow
-        self.upperChangedRow = self.parser.fullyParsedToLine
-        self.parserTime = time.time() - start
-
-    def parseDocument(self):
-        begin = min(self.parser.fullyParsedToLine, self.upperChangedRow)
-        end = self.parser.rowCount()
-        self.doParse(begin, end)
 
     def parseScreenMaybe(self):
         begin = min(self.parser.fullyParsedToLine, self.upperChangedRow)

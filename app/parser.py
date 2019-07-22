@@ -132,6 +132,9 @@ class Parser:
             relative to the |col| parameter.
         """
         if app.config.strict_debug:
+            assert isinstance(row, int)
+            assert isinstance(col, int)
+            assert isinstance(index, int)
             assert row < len(self.rows), row
         eol = True
         finalResult = (self.emptyNode, 0, 0, eol)
@@ -147,6 +150,18 @@ class Parser:
         eol = False
         return ParserNode(*node), offset - node[kVisual], remaining, eol
 
+    def grammarTextAt(self, row, col):
+        """Get the run of text for the given position."""
+        if app.config.strict_debug:
+            assert isinstance(row, int)
+            assert isinstance(col, int)
+            assert row < len(self.rows), row
+        rowIndex = self.rows[row]
+        grammarIndex = self.grammarIndexFromRowCol(row, col)
+        node = self.parserNodes[rowIndex + grammarIndex]
+        nextNode = self.parserNodes[rowIndex + grammarIndex + 1]
+        return self.data[node[kBegin]:nextNode[kBegin]], node[kGrammar].get(u"link_type")
+
     def parse(self, bgThread, appPrefs, data, grammar, beginRow, endRow):
         """
         Args:
@@ -157,9 +172,9 @@ class Parser:
               that is has changed since the previous parse of this data. Pass
               zero to parse the entire document. If beginRow >= len(data) then
               no parse is done.
-          endRow (int): The last row to parse. This stops the parser from going
-              over the entire file if, for example, only 100 rows out of a
-              million rows are needed (which can save a lot of cpu time).
+          endRow (int): The row to stop parsing. This stops the parser from
+              going over the entire file if, for example, only 100 rows out of
+              a million rows are needed (which can save a lot of cpu time).
         """
         app.log.parser('grammar', grammar['name'])
         # Trim partially parsed data.
@@ -304,13 +319,15 @@ class Parser:
         width may be larger than len(text).
 
         Args:
-            row (int): the row index is zero based (so it's line number - 1).
+            row (int): the row index is zero based (so it's `line_number - 1`).
 
         Returns:
             columnWidth (int)
         """
         if app.config.strict_debug:
             assert isinstance(row, int)
+        if row < 0:
+            row = len(self.rows) + row
         visual = self.parserNodes[self.rows[row]][kVisual]
         if row + 1 < len(self.rows):
             end = self.parserNodes[self.rows[row + 1]][kBegin]
