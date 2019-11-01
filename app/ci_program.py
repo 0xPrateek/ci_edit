@@ -17,6 +17,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 try:
+    # Python2.
     unicode
 
     def bytes_to_unicode(chars):
@@ -394,9 +395,13 @@ class CiProgram:
         if openToLine is None:
             decodedPaths = []
             for file in cliFiles:
-                path, openToLine, openToColumn = app.buffer_file.pathLineColumn(
+                path, openToRow, openToColumn = app.buffer_file.pathRowColumn(
                     file[u"path"], self.prefs.editor[u"baseDirEnv"])
-                decodedPaths.append({'path': path})
+                decodedPaths.append({
+                    'path': path,
+                    'row': openToRow,
+                    'col': openToColumn
+                })
             cliFiles = decodedPaths
         self.prefs.startup = {
             'debugRedo': debugRedo,
@@ -564,6 +569,8 @@ def run_ci():
         app.log.writeToFile('~/.ci_edit/recentLog')
         # Disable Bracketed Paste Mode.
         sys.stdout.write('\033[?2004l')
+        # Disable mouse tracking in xterm.
+        sys.stdout.write('\033[?1002;l')
         sys.stdout.flush()
     if userConsoleMessage:
         fullPath = app.buffer_file.expandFullPath(

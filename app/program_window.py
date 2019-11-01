@@ -41,6 +41,7 @@ class ProgramWindow(app.window.ActiveWindow):
             assert issubclass(program.__class__, app.ci_program.CiProgram), self
         app.window.ActiveWindow.__init__(self, program, None)
         self.clicks = 0
+        self.focusedWindow = None
         self.modalUi = None
         self.program = program
         self.priorClick = 0
@@ -242,7 +243,7 @@ class ProgramWindow(app.window.ActiveWindow):
                 window.mouseClick(
                     mouseRow, mouseCol, bState & curses.BUTTON_SHIFT,
                     bState & curses.BUTTON_CTRL, bState & curses.BUTTON_ALT)
-        elif bState & curses.BUTTON2_PRESSED:
+        elif bState & (curses.BUTTON2_PRESSED | 0x200000):
             window.mouseWheelUp(bState & curses.BUTTON_SHIFT,
                                 bState & curses.BUTTON_CTRL,
                                 bState & curses.BUTTON_ALT)
@@ -275,10 +276,11 @@ class ProgramWindow(app.window.ActiveWindow):
                     bState & curses.BUTTON_CTRL, bState & curses.BUTTON_ALT)
         elif bState & curses.BUTTON4_RELEASED:
             # Mouse drag or mouse wheel movement done.
+            app.log.mouse("BUTTON4_RELEASED")
             pass
         else:
             app.log.mouse('got bState', app.curses_util.mouseButtonName(bState),
-                          bState)
+                          hex(bState))
         self.savedMouseWindow = window
         self.savedMouseX = mouseCol
         self.savedMouseY = mouseRow
